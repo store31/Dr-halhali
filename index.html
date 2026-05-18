@@ -6,21 +6,39 @@
     <title>Cabinet Dr. Halhali - Assistant Virtuel</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        body { background-color: #f0f4f8; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        .chat-container { width: 100%; max-width: 450px; height: 100vh; background: white; display: flex; flex-direction: column; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
-        @media (min-width: 460px) { .chat-container { height: 85vh; border-radius: 12px; overflow: hidden; } }
-        .chat-header { background: #0077b6; color: white; padding: 15px; text-align: center; font-size: 1.1rem; font-weight: bold; }
-        .chat-messages { flex: 1; padding: 15px; overflow-y: auto; background: #f7f9fc; display: flex; flex-direction: column; gap: 12px; }
+        body { 
+            background-color: #f0f4f8; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            min-height: 100vh;
+            padding: 10px;
+        }
+        /* تعديل حجم الواجهة لتلائم شاشة الهاتف تماماً */
+        .chat-container { 
+            width: 100%; 
+            max-width: 380px; 
+            height: 82vh; 
+            max-height: 650px;
+            background: white; 
+            display: flex; 
+            flex-direction: column; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15); 
+            border-radius: 16px; 
+            overflow: hidden;
+        }
+        .chat-header { background: #0077b6; color: white; padding: 12px; text-align: center; font-size: 1rem; font-weight: bold; }
+        .chat-messages { flex: 1; padding: 12px; overflow-y: auto; background: #f7f9fc; display: flex; flex-direction: column; gap: 10px; }
         .message-row { display: flex; width: 100%; }
         .message-row.user { justify-content: flex-end; }
         .message-row.bot { justify-content: flex-start; }
-        .message { padding: 10px 14px; border-radius: 15px; max-width: 75%; font-size: 0.95rem; line-height: 1.4; word-wrap: break-word; }
+        .message { padding: 8px 12px; border-radius: 14px; max-width: 80%; font-size: 0.9rem; line-height: 1.4; word-wrap: break-word; }
         .message.bot { background: #e2eafc; color: #333; border-bottom-left-radius: 2px; }
         .message.user { background: #0077b6; color: white; border-bottom-right-radius: 2px; }
         .message.typing { color: #777; font-style: italic; }
-        .chat-input-area { display: flex; padding: 10px; background: #fff; border-top: 1px solid #ddd; gap: 8px; }
-        .chat-input-area input { flex: 1; padding: 12px; border: 1px solid #ccc; border-radius: 20px; outline: none; font-size: 0.95rem; }
-        .chat-input-area button { background: #0077b6; color: white; border: none; padding: 0 20px; border-radius: 20px; cursor: pointer; font-weight: bold; }
+        .chat-input-area { display: flex; padding: 10px; background: #fff; border-top: 1px solid #eee; gap: 6px; }
+        .chat-input-area input { flex: 1; padding: 10px 14px; border: 1px solid #ddd; border-radius: 20px; outline: none; font-size: 0.9rem; }
+        .chat-input-area button { background: #0077b6; color: white; border: none; padding: 0 16px; border-radius: 20px; cursor: pointer; font-weight: bold; font-size: 0.85rem; }
     </style>
 </head>
 <body>
@@ -42,14 +60,13 @@
     const chatBox = document.getElementById("chatBox");
     const input = document.getElementById("userInput");
 
-    // معلومات البوت والـ Chat ID الخاصين بك ومؤمنين داخل الكود الفردي للواجهة
     const TG_TOKEN = "8602699778:AAH6vIJCZJZrNw22fSnGiEbGYVLNhUdnSm8";
     const TG_CHAT_ID = "8177936569";
 
     let conversationHistory = [
         {
             role: "system",
-            content: "Tu es l'assistante médicale virtuelle du Cabinet Dr. Halhali, spécialiste en Néphrologie. Tu parles uniquement en Français de manière très professionnelle, chaleureuse et polie. Ton rôle principal est d'aider les patients à prendre rendez-vous en collectant impérativement trois informations : 1) Leur Nom complet, 2) Leur Numéro de téléphone, 3) Le Motif de consultation. Dès que le patient t'a fourni ces trois informations, tu dois obligatoirement terminer ta réponse par la formule exacte suivante : '[RDV_CONFIRME]'"
+            content: "Tu es l'assistante médicale virtuelle du Cabinet Dr. Halhali, spécialiste en Néphrologie. Tu parles uniquement en Français de manière très professionnelle, chaleureuse et polie. Ton rôle est de collecter : 1) Nom complet, 2) Numéro de téléphone, 3) Motif de consultation. Dès que tu as ces 3 informations, tu dois obligatoirement inclure le mot-clé [CONFIRME] à la fin de ton message."
         }
     ];
 
@@ -64,9 +81,85 @@
         chatBox.scrollTop = chatBox.scrollHeight;
     }
 
-    async function sendToTelegram(patientData) {
-        // إنشاء رسالة منسقة على شكل جدول منظم للطبيب
-        const messageText = `📋 *Nouveau Rendez-vous Enregistré* \n\n` +
-                            `👤 *Nom complet:* ${patientData.name || 'Non spécifié'}\n` +
-                            `📞 *Téléphone:* ${patientData.phone || 'Non spécifié'}\n` +
-                            `🩺 *Motif:* ${patientData.motif || 'Non spécifié'}\n\
+    async function sendToTelegramDirect() {
+        // طريقة إرسال مضمونة 100% ترسل نص الحوار الكامل للطبيب حتى لا يضيع أي موعد بسبب أخطاء الـ JSON
+        let textHistory = "📋 *Nouveau Rendez-vous Enregistré*\n\n🔹 *Détails du Chat :*\n";
+        
+        // تجميع الرسائل التي دارت بين المريض والذكاء الاصطناعي
+        conversationHistory.forEach(msg => {
+            if (msg.role === "user") {
+                textHistory += `👤 *Patient:* ${msg.content}\n`;
+            } else if (msg.role === "assistant") {
+                textHistory += `🤖 *Assistant:* ${msg.content}\n`;
+            }
+        });
+
+        textHistory += `\n🤖 _Vérifiez les coordonnées ci-dessus_`;
+
+        try {
+            await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    chat_id: TG_CHAT_ID,
+                    text: textHistory,
+                    parse_mode: "Markdown"
+                })
+            });
+            console.log("Envoyé à Telegram avec succès !");
+        } catch (error) {
+            console.error("Erreur Telegram:", error);
+        }
+    }
+
+    async function sendMessage() {
+        const userMsg = input.value.trim();
+        if (!userMsg) return;
+
+        addMessage(userMsg, "user");
+        input.value = "";
+        conversationHistory.push({ role: "user", content: userMsg });
+
+        const loadingRow = document.createElement("div");
+        loadingRow.className = "message-row bot";
+        loadingRow.id = "typing";
+        loadingRow.innerHTML = `<div class="message bot typing">En cours de réflexion...</div>`;
+        chatBox.appendChild(loadingRow);
+        chatBox.scrollTop = chatBox.scrollHeight;
+
+        try {
+            const response = await fetch("https://text.pollinations.ai/", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    messages: conversationHistory,
+                    model: "openai",
+                    private: true
+                })
+            });
+
+            document.getElementById("typing").remove();
+            let reply = await response.text();
+
+            // فحص مرن يدعم الحروف الكبيرة والصغيرة لضمان الالتقاط
+            if (reply.toUpperCase().includes("[CONFIRME]")) {
+                reply = reply.replace(/\[CONFIRME\]/gi, "").trim();
+                addMessage(reply, "bot");
+                conversationHistory.push({ role: "assistant", content: reply });
+                
+                // إرسال البيانات فوراً للتليغرام
+                await sendToTelegramDirect();
+            } else {
+                addMessage(reply, "bot");
+                conversationHistory.push({ role: "assistant", content: reply });
+            }
+
+        } catch (e) {
+            document.getElementById("typing").remove();
+            addMessage("Désolé, service temporairement indisponible. Réessayez.", "bot");
+        }
+    }
+</script>
+
+</body>
+</html>
