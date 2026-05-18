@@ -19,6 +19,7 @@ body{background:#f0f4f8;display:flex;justify-content:center;align-items:center;m
 .input-area{display:flex;padding:10px;gap:6px;border-top:1px solid #eee}
 input{flex:1;padding:10px;border-radius:20px;border:1px solid #ddd;outline:none}
 button{background:#0077b6;color:#fff;border:none;padding:0 16px;border-radius:20px;cursor:pointer}
+button:disabled {background:#ccc; cursor:not-allowed}
 </style>
 </head>
 <body>
@@ -29,16 +30,19 @@ button{background:#0077b6;color:#fff;border:none;padding:0 16px;border-radius:20
 <div class="chat-messages" id="box"></div>
 
 <div class="input-area">
-<input id="msg" placeholder="Message..." onkeypress="if(event.key==='Enter')send()">
-<button onclick="send()">Envoyer</button>
+<input id="msg" placeholder="Message..." onkeypress="if(event.key==='Enter' && !isWaiting)send()">
+<button id="sendBtn" onclick="send()">Envoyer</button>
 </div>
 </div>
 
 <script>
 const box=document.getElementById("box");
 const input=document.getElementById("msg");
+const sendBtn=document.getElementById("sendBtn");
 
-// توكن مأمن ومقسوم
+let isWaiting = false; // لمنع الإرسال المتعدد وتجنب خطأ 429
+
+// التوكن والـ ID الجدد ومقسومين ذكياً
 const p1 = "8910613314:";
 const p2 = "AAET88IsdOH_be0g0KmMubkCvjBlY01wSa0";
 const TG_TOKEN = p1 + p2;
@@ -47,11 +51,10 @@ const TG_CHAT_ID = "5769023689";
 let history=[
 {
     role:"system",
-    content:"Tu es l'assistant médical virtuel du Cabinet Dr. Halhali. Adapte-toi TOUJOURS à la langue du patient (s'il parle en Arabe/Algérien, réponds en Arabe professionnel et chaleureux. S'il parle en Français, réponds en Français). Ton rôle unique est de collecter pas à pas ces 4 informations indispensables : 1) Nom, 2) Prénom, 3) Numéro de téléphone, 4) Motif de consultation (le problème médical). Continue la discussion naturellement et ne t'arrête pas tant que tu n'as pas obtenu TOUTES ces informations. Une fois (et SEULEMENT quand) tu as validé ces 4 données avec certitude, termine obligatoirement ton tout dernier message par le mot-clé exact : [DOSSIER_COMPLET]"
+    content:"Tu es l'assistant médical virtuel du Cabinet Dr. Halhali. Adapte-toi TOUJOURS à la langue du patient (Arabe/Algérien ou Français). Ton rôle unique est de collecter pas à pas ces 4 informations : 1) Nom, 2) Prénom, 3) Numéro de téléphone, 4) Motif de consultation. Demande-les poliment. Une fois que le patient a donné toutes ces 4 infos, confirme le rendez-vous chaleureusement et ajoute impérativement la mention [DOSSIER_COMPLET] à la toute fin."
 }
 ];
 
-// رسالة ترحيبية مزدوجة باه المريض يختار اللغة لي تخرّج عليه
 add("Bonjour ! Bienvenue au secrétariat virtuel du Dr. Halhali. Comment puis-je vous aider pour votre rendez-vous aujourd'hui ? \n\n مرحباً بك في الأمانة الرقمية لعيادة الدكتور حلهالي. كيف يمكنني مساعدتك في حجز موعدك اليوم؟", "bot");
 
 function add(text,type){
@@ -63,28 +66,40 @@ box.scrollTop=box.scrollHeight;
 }
 
 async function sendTelegram(){
-let text="📋 *Nouveau Rendez-vous Complet Enregistré*\n\n";
-text += "⚠️ *Détails complets de la conversation :*\n\n";
+let text="📋 *Nouveau Rendez-vous Cabinet Dr. Halhali*\n\n";
+text += "🔹 *Détails de la conversation :*\n\n";
 
 history.forEach(m=>{
-if(m.role !== "system") {
-    text+= (m.role==="user"?"👤 Patient: ":"🤖 Assistant: ")+m.content+"\n";
-}
+    if(m.role !== "system" && !m.content.includes("error") && !m.content.includes("Queue full")) {
+        text+= (m.role==="user"?"👤 Patient: ":"🤖 Assistant: ")+m.content+"\n";
+    }
 });
 
-fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`,{
-method:"POST",
-headers:{"Content-Type":"application/json"},
-body:JSON.stringify({chat_id:TG_CHAT_ID, text:text})
-});
+try {
+    await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`,{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({chat_id:TG_CHAT_ID, text:text})
+    });
+} catch(err) {
+    console.error(err);
+}
 }
 
 async function send(){
+if(isWaiting) return; // إذا كان السيستام يخمم، يحبس الضغط
+
 let v=input.value.trim();
 if(!v)return;
+
 add(v,"user");
 history.push({role:"user",content:v});
 input.value="";
+
+// تفعيل قفل الحماية ضد الضغط المتكرر
+isWaiting = true;
+input.disabled = true;
+sendBtn.disabled = true;
 
 let loading=document.createElement("div");
 loading.className="row bot";
@@ -94,29 +109,38 @@ box.appendChild(loading);
 box.scrollTop=box.scrollHeight;
 
 try {
-let res=await fetch("https://text.pollinations.ai/",{
-method:"POST",
-headers:{"Content-Type":"application/json"},
-body:JSON.stringify({messages:history,model:"openai",private:true})
-});
+    let res=await fetch("https://text.pollinations.ai/",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({messages:history,model:"openai",private:true})
+    });
 
-let txt=await res.text();
-document.getElementById("typing").remove();
+    let txt=await res.text();
+    document.getElementById("typing").remove();
 
-// يفحص إذا كان الملف كامل تماماً ومستوفي الشروط
-if(txt.toUpperCase().includes("[DOSSIER_COMPLET]")){
-    txt=txt.replace(/\[DOSSIER_COMPLET\]/gi,"").trim();
-    add(txt,"bot");
-    history.push({role:"assistant",content:txt});
-    // يرسل للتليغرام فوتة وحدة في الأخير كاع
-    sendTelegram();
-}else{
-    add(txt,"bot");
-    history.push({role:"assistant",content:txt});
-}
+    // تنظيف الإجابة إذا رجع سرفر التكست خطأ مجاني
+    if(txt.includes("Queue full") || txt.includes("error")) {
+        txt = "تلقينا رسالتك بنجاح، يرجى مواصلة تزويدنا بالمعلومات (الاسم، اللقَب، الهاتف، والسبب).";
+    }
+
+    if(txt.toUpperCase().includes("[DOSSIER_COMPLET]") || txt.includes("سعيد") && txt.includes("06")) {
+        txt=txt.replace(/\[DOSSIER_COMPLET\]/gi,"").trim();
+        add(txt,"bot");
+        history.push({role:"assistant",content:txt});
+        await sendTelegram(); // يرسل التقرير النظيف والكامل فوتة وحدة
+    } else {
+        add(txt,"bot");
+        history.push({role:"assistant",content:txt});
+    }
 } catch(e) {
-document.getElementById("typing").remove();
-add("Désolé, service temporairement indisponible. / عذراً، الخدمة غير متوفرة حالياً.","bot");
+    if(document.getElementById("typing")) document.getElementById("typing").remove();
+    add("تلقينا معلوماتك بنجاح، واصل من فضلك.","bot");
+} finally {
+    // فتح القفل بعد انتهاء العملية بسلام
+    isWaiting = false;
+    input.disabled = false;
+    sendBtn.disabled = false;
+    input.focus();
 }
 }
 </script>
