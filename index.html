@@ -6,25 +6,22 @@
     <title>Cabinet Dr. Halhali - Assistant Virtuel</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        body { background-color: #f0f4f8; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        body { background-color: #f0f4f8; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
         
-        /* حاوية الشات ملمومة ومثبتة الطول باه ما تهربش الكتابة تحت */
         .chat-container { width: 100%; max-width: 450px; height: 100vh; background: white; display: flex; flex-direction: column; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
-        @media (min-width: 460px) { .chat-container { height: 85vh; border-radius: 12px; overflow: hidden; } }
+        @media (min-width: 460px) { .chat-container { height: 90vh; border-radius: 12px; overflow: hidden; } }
 
         .chat-header { background: #0077b6; color: white; padding: 15px; text-align: center; font-size: 1.1rem; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         
-        /* صندوق الرسائل مفرز ويسكرولي لداخل برك */
         .chat-messages { flex: 1; padding: 15px; overflow-y: auto; background: #f7f9fc; display: flex; flex-direction: column; gap: 10px; }
         .message { padding: 10px 14px; border-radius: 15px; max-width: 75%; font-size: 0.95rem; line-height: 1.4; word-wrap: break-word; }
         .message.bot { background: #e2eafc; align-self: flex-start; color: #333; border-bottom-left-radius: 4px; }
         .message.user { background: #0077b6; color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
         
-        /* مكان الكتابة لاصق ديمًا تحت صندوق الرسائل مباشرة ومجموع */
-        .chat-input-area { display: flex; padding: 10px; background: #fff; border-top: 1px solid #ddd; gap: 8px; }
+        .chat-input-area { display: flex; padding: 10px; background: #fff; border-top: 1px solid #ddd; gap: 8px; box-shadow: 0 -2px 5px rgba(0,0,0,0.05); }
         .chat-input-area input { flex: 1; padding: 12px; border: 1px solid #ccc; border-radius: 20px; outline: none; font-size: 0.95rem; }
         .chat-input-area button { background: #0077b6; color: white; border: none; padding: 0 20px; border-radius: 20px; font-weight: bold; cursor: pointer; }
-        .chat-input-area button:hover { background: #005f8d; }
+        .chat-input-area button:active { background: #005f8d; }
     </style>
 </head>
 <body>
@@ -41,7 +38,6 @@
 </div>
 
 <script>
-    const chatId = "web_" + Math.random().toString(36).substring(7);
     const chatBox = document.getElementById("chatBox");
 
     async function sendMessage() {
@@ -54,28 +50,28 @@
         input.value = "";
         chatBox.scrollTop = chatBox.scrollHeight;
 
-        // وضع رسالة انتظار خفيفة باه المريض يفهم باللي البوت راه يكتب
+        // وضع رسالة انتظار خفيفة
         const loadingId = "load_" + Date.now();
         chatBox.innerHTML += `<div class="message bot" id="${loadingId}"><i>En cours de réflexion...</i></div>`;
         chatBox.scrollTop = chatBox.scrollHeight;
 
         try {
-            // تنبيه: استعملنا الرابط المباشر للـ Gradio API باه يجاوب تمتم وبلا مشاكل اتصال
+            // الـ Gradio API يتوقع استقبال الـ داتا داخل لستة ومغلفة فـ "data"
             const response = await fetch("https://klasiinkov-hlhli.hf.space/api/predict", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ data: [userMsg] })
             });
             
-            const data = await response.json();
-            const botResponse = data.data[0];
+            const result = await response.json();
+            // الـ Gradio يرجع النتيجة داخل لستة فـ داتا
+            const botResponse = result.data[0];
 
-            // مسح رسالة الانتظار وعرض جواب البوت
             document.getElementById(loadingId).remove();
             chatBox.innerHTML += `<div class="message bot">${botResponse}</div>`;
             chatBox.scrollTop = chatBox.scrollHeight;
         } catch(e) {
-            document.getElementById(loadingId).remove();
+            if(document.getElementById(loadingId)) document.getElementById(loadingId).remove();
             chatBox.innerHTML += `<div class="message bot" style="color:red;">Erreur de connexion au serveur. Réessayez.</div>`;
             chatBox.scrollTop = chatBox.scrollHeight;
         }
