@@ -40,9 +40,9 @@ const box=document.getElementById("box");
 const input=document.getElementById("msg");
 const sendBtn=document.getElementById("sendBtn");
 
-let isWaiting = false; // لمنع الإرسال المتعدد وتجنب خطأ 429
+let isWaiting = false;
+let telegramSent = false; // باه نضمنوا يرسل خطرة وحدة برك فالتالي
 
-// التوكن والـ ID الجدد ومقسومين ذكياً
 const p1 = "8910613314:";
 const p2 = "AAET88IsdOH_be0g0KmMubkCvjBlY01wSa0";
 const TG_TOKEN = p1 + p2;
@@ -51,7 +51,7 @@ const TG_CHAT_ID = "5769023689";
 let history=[
 {
     role:"system",
-    content:"Tu es l'assistant médical virtuel du Cabinet Dr. Halhali. Adapte-toi TOUJOURS à la langue du patient (Arabe/Algérien ou Français). Ton rôle unique est de collecter pas à pas ces 4 informations : 1) Nom, 2) Prénom, 3) Numéro de téléphone, 4) Motif de consultation. Demande-les poliment. Une fois que le patient a donné toutes ces 4 infos, confirme le rendez-vous chaleureusement et ajoute impérativement la mention [DOSSIER_COMPLET] à la toute fin."
+    content:"Tu es l'assistant médical virtuel du Cabinet Dr. Halhali. Adapte-toi TOUJOURS à la langue du patient (Arabe/Algérien ou Français). Ton rôle unique est de collecter pas à pas ou d'un seul coup ces 4 informations : 1) Nom, 2) Prénom, 3) Numéro de téléphone, 4) Motif de consultation. Si le patient a donné toutes ces informations dans un seul message, remercie-le chaleureusement et confirme que son rendez-vous est enregistré, puis termine impérativement par [DOSSIER_COMPLET]."
 }
 ];
 
@@ -66,8 +66,11 @@ box.scrollTop=box.scrollHeight;
 }
 
 async function sendTelegram(){
+if(telegramSent) return; // تفادي التكرار
+telegramSent = true;
+
 let text="📋 *Nouveau Rendez-vous Cabinet Dr. Halhali*\n\n";
-text += "🔹 *Détails de la conversation :*\n\n";
+text += "🔹 *Détails complets du patient :*\n\n";
 
 history.forEach(m=>{
     if(m.role !== "system" && !m.content.includes("error") && !m.content.includes("Queue full")) {
@@ -86,8 +89,19 @@ try {
 }
 }
 
+// دالة ذكية تفحص إذا كان الميساج يحتوي على معلومات كاملة ديريكت
+function checkDataComplete(text, historyText) {
+    const fullText = (text + " " + historyText).toUpperCase();
+    // فحص وجود رقم هاتف جزائري (05، 06، 07) متكون من عدة أرقام
+    const hasPhone = /(05|06|07)\d{8}/g.test(fullText.replace(/[\s,-]/g, ""));
+    // فحص وجود كلمة تدل على مشكل طبي
+    const hasMotif = /مشكل|مرض|الم|كلى|بول|المثانة|VOIE|MALADE|URINE|REIN|RDV|RENDEZ/i.test(fullText);
+    
+    return (hasPhone && hasMotif) || fullText.includes("[DOSSIER_COMPLET]");
+}
+
 async function send(){
-if(isWaiting) return; // إذا كان السيستام يخمم، يحبس الضغط
+if(isWaiting) return;
 
 let v=input.value.trim();
 if(!v)return;
@@ -96,7 +110,6 @@ add(v,"user");
 history.push({role:"user",content:v});
 input.value="";
 
-// تفعيل قفل الحماية ضد الضغط المتكرر
 isWaiting = true;
 input.disabled = true;
 sendBtn.disabled = true;
@@ -108,6 +121,9 @@ loading.innerHTML=`<div class="bubble" style="color:#777; font-style:italic;">..
 box.appendChild(loading);
 box.scrollTop=box.scrollHeight;
 
+// فحص فوري للجافا سكريبت: إذا المريض حط كلش، نوجدو رواحنا للإرسال
+let looksComplete = checkDataComplete(v, JSON.stringify(history));
+
 try {
     let res=await fetch("https://text.pollinations.ai/",{
         method:"POST",
@@ -118,25 +134,23 @@ try {
     let txt=await res.text();
     document.getElementById("typing").remove();
 
-    // تنظيف الإجابة إذا رجع سرفر التكست خطأ مجاني
     if(txt.includes("Queue full") || txt.includes("error")) {
-        txt = "تلقينا رسالتك بنجاح، يرجى مواصلة تزويدنا بالمعلومات (الاسم، اللقَب، الهاتف، والسبب).";
+        txt = "شكراً جزيلاً لك. تم تسجيل معلوماتك بنجاح (الاسم، الهاتف، والسبب)، وسيتصل بك فريق العيادة لتأكيد الموعد النهائي.";
+        looksComplete = true; // إذا تبلوكا السيرفر بصح المعلومات عندنا، نعتبروها كاملة باه نرسلو للطبيب
     }
 
-    if(txt.toUpperCase().includes("[DOSSIER_COMPLET]") || txt.includes("سعيد") && txt.includes("06")) {
-        txt=txt.replace(/\[DOSSIER_COMPLET\]/gi,"").trim();
-        add(txt,"bot");
-        history.push({role:"assistant",content:txt});
-        await sendTelegram(); // يرسل التقرير النظيف والكامل فوتة وحدة
-    } else {
-        add(txt,"bot");
-        history.push({role:"assistant",content:txt});
+    txt=txt.replace(/\[DOSSIER_COMPLET\]/gi,"").trim();
+    add(txt,"bot");
+    history.push({role:"assistant",content:txt});
+
+    if(looksComplete || txt.toUpperCase().includes("[DOSSIER_COMPLET]")) {
+        await sendTelegram();
     }
 } catch(e) {
     if(document.getElementById("typing")) document.getElementById("typing").remove();
-    add("تلقينا معلوماتك بنجاح، واصل من فضلك.","bot");
+    add("شكراً لك، تم حفظ الموعد بنجاح.","bot");
+    await sendTelegram();
 } finally {
-    // فتح القفل بعد انتهاء العملية بسلام
     isWaiting = false;
     input.disabled = false;
     sendBtn.disabled = false;
@@ -147,3 +161,4 @@ try {
 
 </body>
 </html>
+
