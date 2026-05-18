@@ -2,62 +2,85 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Cabinet Dr. Halhali - Assistant Virtuel</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f4f8; margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        .chat-container { width: 100%; max-width: 450px; height: 85vh; background: white; box-shadow: 0 5px 15px rgba(0,0,0,0.1); border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; }
-        .chat-header { background: #0077b6; color: white; padding: 15px; text-align: center; font-size: 1.1rem; font-weight: bold; }
-        .chat-messages { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
-        .message { padding: 10px 14px; border-radius: 15px; max-width: 75%; font-size: 0.95rem; line-height: 1.4; }
-        .message.bot { background: #e2eafc; align-self: flex-start; color: #333; }
-        .message.user { background: #0077b6; color: white; align-self: flex-end; }
-        .chat-input-area { display: flex; padding: 10px; background: #f8f9fa; border-top: 1px solid #ddd; }
-        .chat-input-area input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 20px; outline: none; padding-left: 15px; }
-        .chat-input-area button { background: #0077b6; color: white; border: none; padding: 0 20px; margin-left: 5px; border-radius: 20px; cursor: pointer; font-weight: bold; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: #f0f4f8; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        
+        /* حاوية الشات ملمومة ومثبتة الطول باه ما تهربش الكتابة تحت */
+        .chat-container { width: 100%; max-width: 450px; height: 100vh; background: white; display: flex; flex-direction: column; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+        @media (min-width: 460px) { .chat-container { height: 85vh; border-radius: 12px; overflow: hidden; } }
+
+        .chat-header { background: #0077b6; color: white; padding: 15px; text-align: center; font-size: 1.1rem; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        
+        /* صندوق الرسائل مفرز ويسكرولي لداخل برك */
+        .chat-messages { flex: 1; padding: 15px; overflow-y: auto; background: #f7f9fc; display: flex; flex-direction: column; gap: 10px; }
+        .message { padding: 10px 14px; border-radius: 15px; max-width: 75%; font-size: 0.95rem; line-height: 1.4; word-wrap: break-word; }
+        .message.bot { background: #e2eafc; align-self: flex-start; color: #333; border-bottom-left-radius: 4px; }
+        .message.user { background: #0077b6; color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
+        
+        /* مكان الكتابة لاصق ديمًا تحت صندوق الرسائل مباشرة ومجموع */
+        .chat-input-area { display: flex; padding: 10px; background: #fff; border-top: 1px solid #ddd; gap: 8px; }
+        .chat-input-area input { flex: 1; padding: 12px; border: 1px solid #ccc; border-radius: 20px; outline: none; font-size: 0.95rem; }
+        .chat-input-area button { background: #0077b6; color: white; border: none; padding: 0 20px; border-radius: 20px; font-weight: bold; cursor: pointer; }
+        .chat-input-area button:hover { background: #005f8d; }
     </style>
 </head>
 <body>
 
 <div class="chat-container">
-    <div class="chat-header">🩺 Dr. Halhali - Assistant Médical Virtual</div>
+    <div class="chat-header">🩺 Dr. Halhali - Assistant Médical</div>
     <div class="chat-messages" id="chatBox">
         <div class="message bot">Bonjour! Bienvenue au secrétariat virtuel du Dr. Halhali. Comment puis-je vous aider pour votre rendez-vous aujourd'hui ?</div>
     </div>
     <div class="chat-input-area">
-        <input type="text" id="userInput" placeholder="Écrivez votre message ici...">
+        <input type="text" id="userInput" placeholder="Écrivez votre message ici..." onkeypress="if(event.key==='Enter') sendMessage()">
         <button onclick="sendMessage()">Envoyer</button>
     </div>
 </div>
 
 <script>
     const chatId = "web_" + Math.random().toString(36).substring(7);
-    
+    const chatBox = document.getElementById("chatBox");
+
     async function sendMessage() {
         const input = document.getElementById("userInput");
-        const chatBox = document.getElementById("chatBox");
-        if(!input.value.trim()) return;
+        const userMsg = input.value.trim();
+        if (!userMsg) return;
 
-        // رسالة المستخدم
-        chatBox.innerHTML += `<div class="message user">${input.value}</div>`;
-        const userMsg = input.value;
+        // عرض رسالة المستخدم فوراً
+        chatBox.innerHTML += `<div class="message user">${userMsg}</div>`;
         input.value = "";
         chatBox.scrollTop = chatBox.scrollHeight;
 
-        // إرسال للـ Backend ف الـ Space ديريكت
+        // وضع رسالة انتظار خفيفة باه المريض يفهم باللي البوت راه يكتب
+        const loadingId = "load_" + Date.now();
+        chatBox.innerHTML += `<div class="message bot" id="${loadingId}"><i>En cours de réflexion...</i></div>`;
+        chatBox.scrollTop = chatBox.scrollHeight;
+
         try {
-            const response = await fetch("https://klasiinkov-hlhli.hf.space/chat", {
+            // تنبيه: استعملنا الرابط المباشر للـ Gradio API باه يجاوب تمتم وبلا مشاكل اتصال
+            const response = await fetch("https://klasiinkov-hlhli.hf.space/api/predict", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ message: userMsg, chat_id: chatId })
+                body: JSON.stringify({ data: [userMsg] })
             });
+            
             const data = await response.json();
-            chatBox.innerHTML += `<div class="message bot">${data.response}</div>`;
+            const botResponse = data.data[0];
+
+            // مسح رسالة الانتظار وعرض جواب البوت
+            document.getElementById(loadingId).remove();
+            chatBox.innerHTML += `<div class="message bot">${botResponse}</div>`;
             chatBox.scrollTop = chatBox.scrollHeight;
         } catch(e) {
-            chatBox.innerHTML += `<div class="message bot">Erreur de connexion au serveur.</div>`;
+            document.getElementById(loadingId).remove();
+            chatBox.innerHTML += `<div class="message bot" style="color:red;">Erreur de connexion au serveur. Réessayez.</div>`;
+            chatBox.scrollTop = chatBox.scrollHeight;
         }
     }
 </script>
+
 </body>
 </html>
