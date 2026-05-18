@@ -135,9 +135,6 @@
     const input = document.getElementById("userInput");
     const sendBtn = document.getElementById("sendBtn");
 
-    // الرابط الصحيح والمباشر المتصل بالـ Space عبر نظام Docker
-    const API_URL = "https://klasiinkov-hlhli.hf.space/.direct/chat";
-
     function addMessage(text, type) {
         const row = document.createElement("div");
         row.className = `message-row ${type}`;
@@ -155,11 +152,9 @@
         const userMsg = input.value.trim();
         if (!userMsg) return;
 
-        // عرض رسالة المستخدم فوراً
         addMessage(userMsg, "user");
         input.value = "";
 
-        // إضافة تأثير الـ Loading (En cours de réflexion...)
         const loadingRow = document.createElement("div");
         loadingRow.className = "message-row bot";
         loadingRow.id = "typing";
@@ -171,30 +166,53 @@
         chatBox.appendChild(loadingRow);
         chatBox.scrollTop = chatBox.scrollHeight;
 
+        // الخطة أ: الاتصال المباشر مع تفعيل الـ CORS
         try {
-            const response = await fetch(API_URL, {
+            const response = await fetch("https://klasiinkov-hlhli.hf.space/chat", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { 
+                    "Content-Type": "application/json",
+                    "Accept": "application/json"
+                },
+                mode: "cors", 
                 body: JSON.stringify({ message: userMsg })
             });
 
-            // حذف تأثير الـ Loading
             const typingIndicator = document.getElementById("typing");
             if (typingIndicator) typingIndicator.remove();
 
-            if (!response.ok) {
-                throw new Error("Erreur de réponse serveur");
-            }
+            if (!response.ok) throw new Error("CORS or Server error");
 
             const data = await response.json();
             addMessage(data.response, "bot");
 
         } catch (e) {
-            // حذف تأثير الـ Loading في حالة الخطأ
-            const typingIndicator = document.getElementById("typing");
-            if (typingIndicator) typingIndicator.remove();
+            // الخطة ب: إذا تبلوكت الحماية، نجرب رابط الـ .direct الاحتياطي ديريكت
+            try {
+                const altResponse = await fetch("https://klasiinkov-hlhli.hf.space/.direct/chat", {
+                    method: "POST",
+                    headers: { 
+                        "Content-Type": "application/json",
+                        "Accept": "application/json"
+                    },
+                    mode: "cors",
+                    body: JSON.stringify({ message: userMsg })
+                });
 
-            addMessage("Erreur de connexion au serveur. Réessayez.", "bot");
+                const typingIndicator = document.getElementById("typing");
+                if (typingIndicator) typingIndicator.remove();
+
+                if (!altResponse.ok) throw new Error("Fallback error");
+
+                const altData = await altResponse.json();
+                addMessage(altData.response, "bot");
+
+            } catch(err) {
+                const typingIndicator = document.getElementById("typing");
+                if (typingIndicator) typingIndicator.remove();
+
+                addMessage("Désolé, problème de sécurité du navigateur ou chargement de l'IA. Veuillez rafraîchir la page et réessayer.", "bot");
+            }
         }
     }
 </script>
