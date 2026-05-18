@@ -68,7 +68,6 @@
         chatBox.scrollTop = chatBox.scrollHeight;
 
         try {
-            // اتصال مباشر بسرفر مجاني ومفتوح بدون أي مفاتيح سرية
             const response = await fetch("https://text.pollinations.ai/", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -76,11 +75,11 @@
                     messages: [
                         {
                             role: "system",
-                            content: "Tu es l'assistante médicale virtuelle du Cabinet Dr. Halhali, spécialiste en Néphrologie. Tu parles uniquement en Français de manière très professionnelle, chaleureuse et polie. Ton rôle est d'aider les patients à prendre rendez-vous, leur demander leur nom complet, numéro de téléphone, et le motif de consultation."
+                            content: "Tu es l'assistante médicale virtuelle du Cabinet Dr. Halhali, spécialiste en Néphrologie. Tu parles uniquement en Français de manière très professionnelle, chaleureuse et polie. Ton rôle est d'aider les patients à prendre rendez-vous, leur demander leur nom complet, numéro de téléphone, et le motif de consultation. Ne réponds jamais à côté de ton rôle médical."
                         },
                         { role: "user", content: userMsg }
                     ],
-                    model: "openai-large", // موديل سريع ومجاني تماماً
+                    model: "openai",
                     private: true
                 })
             });
